@@ -47,6 +47,13 @@ void setup() {
 
     pinMode(6, OUTPUT);
     pinMode(7, OUTPUT);
+    pinMode(8, OUTPUT);
+    pinMode(9, OUTPUT);
+    pinMode(10, OUTPUT);
+    digitalWrite(8, LOW);
+    digitalWrite(9, LOW);
+    digitalWrite(10, LOW);
+    
     analogWriteFrequency(1000);
     analogWriteResolution(8); // 0-255
     analogWrite(6, 0);
@@ -77,10 +84,25 @@ void loop() {
     // Check for incoming serial data (target position)
     if (Serial.available() > 0) {
         String input = Serial.readStringUntil('\n');
-        // Simple validation: check if it's a number
+        input.trim();
+        
+        // Check for GPIO command (e.g. P8:1)
         if (input.length() > 0) {
-             target_position = input.toFloat();
-             integral_error = 0; // Reset integral on new target
+            if (input.startsWith("P")) {
+                int colonIndex = input.indexOf(':');
+                if (colonIndex != -1) {
+                    int pin = input.substring(1, colonIndex).toInt();
+                    int state = input.substring(colonIndex + 1).toInt();
+                    
+                    if (pin == 8 || pin == 9 || pin == 10) {
+                        digitalWrite(pin, state ? HIGH : LOW);
+                    }
+                }
+            } else {
+                // Assume it's a target position (number)
+                target_position = input.toFloat();
+                integral_error = 0; // Reset integral on new target
+            }
         }
     }
 

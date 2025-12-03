@@ -81,6 +81,18 @@ class MotorControlGUI:
         self.target_scale.pack(fill="x", pady=5)
         self.target_scale.set(0.0)
 
+        # GPIO Frame
+        gpio_frame = tk.LabelFrame(self.root, text="GPIO Control", padx=10, pady=5)
+        gpio_frame.pack(fill="x", padx=10, pady=5)
+        
+        self.gpio_vars = {}
+        for pin in [8, 9, 10]:
+            var = tk.IntVar()
+            self.gpio_vars[pin] = var
+            cb = tk.Checkbutton(gpio_frame, text=f"Pin {pin}", variable=var, 
+                                command=lambda p=pin: self.toggle_gpio(p))
+            cb.pack(side="left", padx=10)
+
     def find_port(self):
         ports = list(serial.tools.list_ports.comports())
         for p in ports:
@@ -153,6 +165,15 @@ class MotorControlGUI:
             except Exception:
                 pass
 
+    def toggle_gpio(self, pin):
+        if self.connected and self.serial_port:
+            try:
+                state = self.gpio_vars[pin].get()
+                msg = f"P{pin}:{state}\n"
+                self.serial_port.write(msg.encode('utf-8'))
+            except Exception:
+                pass
+
     def on_slider_change(self, val):
         if self.ignore_slider_event:
             return
@@ -196,5 +217,5 @@ class MotorControlGUI:
 if __name__ == "__main__":
     root = tk.Tk()
     app = MotorControlGUI(root)
-    root.geometry("400x350")
+    root.geometry("400x450")
     root.mainloop()
