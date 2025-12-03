@@ -86,7 +86,7 @@ void loop() {
         String input = Serial.readStringUntil('\n');
         input.trim();
         
-        // Check for GPIO command (e.g. P8:1)
+        // Check for GPIO command (e.g. P8:1) or Motor command (e.g. M12.34)
         if (input.length() > 0) {
             if (input.startsWith("P")) {
                 int colonIndex = input.indexOf(':');
@@ -98,10 +98,22 @@ void loop() {
                         digitalWrite(pin, state ? HIGH : LOW);
                     }
                 }
-            } else {
-                // Assume it's a target position (number)
-                target_position = input.toFloat();
+            } else if (input.startsWith("M")) {
+                // Motor command
+                target_position = input.substring(1).toFloat();
                 integral_error = 0; // Reset integral on new target
+            } else {
+                // Legacy/Fallback: Try to parse as number directly (optional, or remove)
+                // Keeping it for robustness if needed, or better to be strict?
+                // User asked for M prefix, let's prioritize strictness or at least check
+                // If it is a pure number, we can treat it as target_position or ignore.
+                // Let's assume strict M prefix is desired, but if the user didn't explicitly say "remove support for no-prefix",
+                // I will leave the fallback or remove it. The request "use M prefix for motor position" implies replacement.
+                // However, checking if it's a digit might be safer than blindly using toFloat() which returns 0.0 on failure.
+                // if (isdigit(input.charAt(0)) || input.charAt(0) == '-') {
+                //      target_position = input.toFloat();
+                //      integral_error = 0;
+                // }
             }
         }
     }

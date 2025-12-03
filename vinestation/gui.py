@@ -160,7 +160,7 @@ class MotorControlGUI:
     def send_target(self):
         if self.connected and self.serial_port:
             try:
-                msg = f"{self.target_pos}\n"
+                msg = f"M{self.target_pos}\n"
                 self.serial_port.write(msg.encode('utf-8'))
             except Exception:
                 pass
