@@ -3,6 +3,8 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
+import json
+from websockets.sync.client import connect
 
 class MotorControlGUI:
     def __init__(self, root):
@@ -17,6 +19,9 @@ class MotorControlGUI:
         self.max_bound = 10.0
         self.repeat_job = None
         self.ignore_slider_event = False
+        self.offset = None
+        
+        self.ws_url = "ws://192.168.1.27/websocket"
         
         # UI Setup
         self.setup_ui()
@@ -93,11 +98,21 @@ class MotorControlGUI:
                                 command=lambda p=pin: self.toggle_gpio(p))
             cb.pack(side="left", padx=10)
 
+        # Servo Frame
+        servo_frame = tk.LabelFrame(self.root, text="Servo Control", padx=10, pady=5)
+        servo_frame.pack(fill="x", padx=10, pady=5)
+        
+        tk.Button(servo_frame, text="Open Servo", 
+                  command=lambda: self.send_servo_cmd(160)).pack(side="left", padx=5, expand=True, fill="x")
+        tk.Button(servo_frame, text="Close Servo", 
+                  command=lambda: self.send_servo_cmd(0)).pack(side="right", padx=5, expand=True, fill="x")
+
     def find_port(self):
         ports = list(serial.tools.list_ports.comports())
         for p in ports:
-            if "usb" in p.device.lower() or "serial" in p.description.lower():
-                return p.device
+            if "usbmodem" in p.device.lower() or "serial" in p.description.lower():
+                if len(p.device) < 20:
+                    return p.device
         return None
 
     def serial_loop(self):
@@ -124,12 +139,16 @@ class MotorControlGUI:
                         last_line = lines[-1]
                         try:
                             val = float(last_line)
-                            self.current_pos = val
+                            if self.offset is None:
+                                self.offset = val
+                            
+                            self.current_pos = val - self.offset
                             self.root.after(0, self.update_gui_from_serial)
                         except ValueError:
                             pass 
             except Exception as e:
                 self.connected = False
+                self.offset = None
                 self.status_var.set("Disconnected")
                 if self.serial_port:
                     self.serial_port.close()
@@ -160,7 +179,8 @@ class MotorControlGUI:
     def send_target(self):
         if self.connected and self.serial_port:
             try:
-                msg = f"M{self.target_pos}\n"
+                actual_target = self.target_pos + (self.offset if self.offset else 0.0)
+                msg = f"M{actual_target}\n"
                 self.serial_port.write(msg.encode('utf-8'))
             except Exception:
                 pass
@@ -173,6 +193,18 @@ class MotorControlGUI:
                 self.serial_port.write(msg.encode('utf-8'))
             except Exception:
                 pass
+
+    def send_servo_cmd(self, angle):
+        threading.Thread(target=self._send_servo_ws, args=(angle,), daemon=True).start()
+
+    def _send_servo_ws(self, angle):
+        try:
+            with connect(self.ws_url) as websocket:
+                msg = json.dumps({"angle": angle})
+                websocket.send(msg)
+                print(f"Sent Servo: {msg}")
+        except Exception as e:
+            print(f"Servo Error: {e}")
 
     def on_slider_change(self, val):
         if self.ignore_slider_event:
@@ -217,5 +249,5 @@ class MotorControlGUI:
 if __name__ == "__main__":
     root = tk.Tk()
     app = MotorControlGUI(root)
-    root.geometry("400x450")
+    root.geometry("400x550")
     root.mainloop()

@@ -6,14 +6,14 @@ AS5600 encoder;
 
 float target_position = 0.0;
 const float DEADBAND = 0.2; // Radians
-const int MIN_PWM = 100;
+const int MIN_PWM = 120;
 const int MAX_PWM = 255;
 
 // PI Controller Constants
 float Kp = 50.0; // Proportional Gain
 float Ki = 2.0;   // Integral Gain (start small or 0)
 float integral_error = 0.0;
-const float MAX_INTEGRAL = 50.0; // Integral Windup Limit
+const float MAX_INTEGRAL = 150.0; // Integral Windup Limit
 
 void setMotor(int pwm) {
     if (pwm > 0) {
@@ -103,25 +103,26 @@ void loop() {
                 target_position = input.substring(1).toFloat();
                 integral_error = 0; // Reset integral on new target
             } else {
-                // Legacy/Fallback: Try to parse as number directly (optional, or remove)
-                // Keeping it for robustness if needed, or better to be strict?
-                // User asked for M prefix, let's prioritize strictness or at least check
-                // If it is a pure number, we can treat it as target_position or ignore.
-                // Let's assume strict M prefix is desired, but if the user didn't explicitly say "remove support for no-prefix",
-                // I will leave the fallback or remove it. The request "use M prefix for motor position" implies replacement.
-                // However, checking if it's a digit might be safer than blindly using toFloat() which returns 0.0 on failure.
-                // if (isdigit(input.charAt(0)) || input.charAt(0) == '-') {
-                //      target_position = input.toFloat();
-                //      integral_error = 0;
-                // }
+
             }
+        // Clear the serial input buffer after processing command
+        while (Serial.available() > 0) {
+            Serial.read();
+        }
         }
     }
 
     // PI control
     float error = target_position - current_position;
     
-    // Integral calculation with windup guard
+    // Integral calculation with windup guard and zero-crossing reset
+    static float last_error = 0;
+
+    // Check for zero crossing: error sign change with respect to last_error, excluding zero itself
+    if ((error != 0) && (last_error != 0) && ((error > 0) != (last_error > 0))) {
+        integral_error = 0;
+    }
+
     if (abs(error) > DEADBAND) {
         integral_error += error;
         if (integral_error > MAX_INTEGRAL) integral_error = MAX_INTEGRAL;
@@ -130,6 +131,8 @@ void loop() {
         // Optional: Clear integral if within deadband to stop drift
         integral_error = 0;
     }
+
+    last_error = error;
 
     float control_signal = (Kp * error) + (Ki * integral_error);
     
